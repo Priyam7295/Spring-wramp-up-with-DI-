@@ -1,4 +1,10 @@
+---
+### Table of Contents:-
+1. Annotations
+2. Beans and its lifecycle and IOC
+3. Dependency Injection
 
+---
 # 1. Annotations 
 
 ### 1. @Controller, @RestController (@Controller + @ResponseBody)
@@ -256,7 +262,7 @@ Two ways of creating a bean
 - @Component Annotation
 - @Bean Annotation
 
-1. @Component Annotation
+### 1. @Component Annotation
 - " Convention over configuration " approach
 - Means spring boot will try to auto configure based on conventions, reducing the need for explicit configurations
 - @Components, @Service etc, all tells spring to create a bean and internally use it.
@@ -272,3 +278,365 @@ public class User{
 ```
 
 - So here, spring will use ```new User()``` [i.e, using default constructor] to create an instance(object) of this class, and store it .
+
+But what now-
+```
+@Component
+public class User{
+    String userName;
+    String email;
+
+    // Here we created our own constructor, so no default constructor is there
+    public User(string username, String email){
+        this.userName = username;
+        this.email = email;
+    }
+    // getter and setter
+}
+```
+- if we use @Component, then our app will fail, spring will not be able to create an instance of the object .
+- So @Beans come into the picture, where we provide configurations.
+
+### 2. @Bean Annotations
+
+2.1 User class
+```
+public class User{
+    String userName;
+    String email;
+
+    // Here we created our own constructor, so no default constructor is there
+    public User(string username, String email){
+        this.userName = username;
+        this.email = email;
+    }
+    // getter and setter
+}
+```
+2.2 Creating configuration - @Configuration
+- This annotation tells spring that, here there will be certain bean methods, for that you need to create bean also.
+```
+@Configuration
+public class AppConfig{
+    @Bean
+    public User createUserBean(){
+        return new User("Priyam","priyaammm@amazon.com");
+    }
+}
+```
+- When are Beans created?
+- NOTE- @Bean , by default has Singleton Scope
+- 1. Eagerness - When we start application. Ex- Beans with singleton scope are eagerly initialized 
+  2. Lazy - Some Beans are created lazilly, meaning when they actaully need . Ex- Beans with scopes like Prototype are lazily initialized 
+  3. Even though the Bean with singleton Scope (with @Lazy Annotation), then the Bean gets created Lazily
+ 
+### 3. Lifecycle of a Bean
+
+[Application Start] -> [IOC Container started] -> [Construct Bean (by IOC scanning for @Component and @Bean(inside @Configuration))] -> [Inject Dependency into Constructed Bean] -> [@PostContruct] -> [Use the Bean] -> [@PreDestroy] -> [Bean Destroy(after we close the application)] , Finally IOC closed, all beans destroyed . 
+
+#### Exmaple on DI
+If Bean is not found, spring will create it and then inject it
+
+```
+@Component
+// Be default singleton scope, hence eagerly initialized
+public class User{
+
+    @Autowired
+    Order order; // Dependency Injection happens here, spring inject the Order Bean here, by creating that
+
+    public User(){
+        System.println.out("User initiated");
+    }
+}
+```
+
+```
+@Lazy // scope is lazy, will get initialzed, only when needed
+@Component
+public class Order{
+    public Order(){
+        System.println.out("Order initiated");
+    }
+}
+```
+---
+# 3. Dependency Injection
+What is Dependency Injection
+- We can make a class independent of it's dependencies
+-  @Autowired - first look for bean of required type, if not create it and inject it
+
+Ways of Dependency Injection:-
+1. Field Injection
+2. Setter Injection
+3. Constructor Injection
+
+
+** We only have to use Constructor Injection. why ?**
+
+#### 1. Field Injection
+   - Dependency is set into the field of class directly.
+```
+@Component
+// Be default singleton scope, hence eagerly initialized
+public class User{
+
+    @Autowired
+    Order order; // Dependency Injection happens here, spring inject the Order Bean here, by creating that
+
+    public User(){
+        System.println.out("User initiated");
+    }
+}
+```
+
+```
+@Lazy // scope is lazy, will get initialzed, only when needed
+@Component
+public class Order{
+    public Order(){
+        System.println.out("Order initiated");
+    }
+}
+```
+Advantage
+- Very simple and easy to use
+
+Disadvantages
+- Can't be used with Immutable field.
+- Like can't use ```public final Order order```;
+- **Chances of null Pointer Exception**
+  Scenario 1 - Some part of code creating object like this
+  ```
+  @Autowired
+    private User user;
+  ```
+  Scenario 2 - Some part of code creating object like this
+  
+  ```
+  User newObj = new User();
+  // so here order is null, as dependency injection is not happening here
+  
+  ```
+- Unit Testing Mock issue - Since the injection happens automatically by spring, there is not way to mock it. Ex- cannot mock ```order``` here.
+
+#### 2. Setter Injection
+- Dependency is set into the feild using the setter method
+- 
+```
+@Service
+public class OrderService {
+    private PaymentService paymentService;         // Required injection
+    private InventoryService inventoryService;     // Required injection
+    private NotificationService notificationService; // Optional injection
+    private boolean isInitialized = false;
+
+    @Autowired
+    public void setPaymentService(PaymentService paymentService) {
+        this.paymentService = paymentService;
+    }
+
+    @Autowired
+    public void setInventoryService(InventoryService inventoryService) {
+        this.inventoryService = inventoryService;
+    }
+
+    @Autowired(required = false)
+    public void setNotificationService(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
+}
+
+```
+
+es2- in controller layer example
+```
+@RestController
+@RequestMapping("/api/orders")
+public class OrderController {
+    private OrderService orderService; // Cannot be final, since we are setting it
+
+    @Autowired
+    public void setOrderService(OrderService orderService) { // Setter injection
+        this.orderService = orderService;
+    }
+
+    @PostMapping
+    public ResponseEntity<Order> createOrder(@RequestBody OrderRequest request) {
+        // Using OrderService
+        Order order = orderService.processOrder(request);
+        return ResponseEntity.ok(order);
+    }
+}
+
+public class orderService{
+    orderService(){
+        // constructor called
+    }
+}
+```
+
+Advantages:-
+- Dependency can be changed any time after the object creation by using the setter method
+- Can directly pass mock object in the setter, no need to use mockito
+
+Disadvantages:-
+- Field can't be marked as final.
+- Since once object is created, it will see @Autowired, and then spring will do injection here by seeing the Bean in the IOC
+- Hard to understand and maintain
+
+#### 3. Constructor Injection
+
+- At the time of creating the object, all the dependencies are resolved (injected)
+```
+@Service  
+public class OrderService {
+    private final PaymentService paymentService;  // final field
+    private final InventoryService inventoryService;
+
+    public OrderService(PaymentService paymentService) {  // Constructor injection
+        this.paymentService = paymentService;
+    }
+
+    @Autowired
+    public OrderService(InventoryService inventoryService){
+        this.inventoryService = inventoryService;
+    }
+}
+
+public class OrderService{
+    
+}
+```
+
+ex2- Multiple Injection
+```
+@Service  
+public class OrderService {
+    private final PaymentService paymentService;  
+    private final InventoryService inventoryService;
+
+    @Autowired
+    public OrderService(PaymentService paymentService, InventoryService inventoryService) {  
+        this.paymentService = paymentService;
+        this.inventoryService = inventoryService;
+    }
+}
+
+```
+
+Advantage:-
+1. Can use final
+2. During object creation, every dependency is resolved and injected and ready to work
+3. Fails fast - If any dependency is missed, then it will fail during compilation time itself, rather than in runtime in case of other 2 methods.
+4. Unit Testing becomes easy -  We can pass mock objects in the contructor
+
+
+#### Common Issues dealing with dependencies
+1. Circular Dependency
+2. Unsatisfied Dependency
+
+#### 1. Circular Dependency
+- As same suggests, if class A has dependency B, and B has A.
+```
+// Circular Dependency Problem ❌
+@Component
+public class A {
+    private final B b;
+
+    @Autowired
+    public A(B b) {  // Needs B
+        this.b = b;
+    }
+}
+
+@Component
+public class B {
+    private final A a;
+
+    @Autowired
+    public B(A a) {  // Needs A
+        this.a = a;
+    }
+}
+// This will fail because each needs the other to be created first!
+```
+
+- Try to refactor code
+- Use @Lazy on @Autowired component [Hacky]
+- Using @PostConstruct [Hacky]
+  
+#### 2. Unsatisfied Dependency
+- User class has one dependency order .
+- Order is an interface, how the User class knows, which implementation of order to inject
+- So applicaation will fail and output - unsatisfied Dependency
+```
+@Component
+public class User{
+    @Autowired
+    User user; // using field injection for demo, can be any
+
+    public User(){
+        // created
+    }
+
+}
+
+public interface Order{
+    
+}
+
+@Component
+@Primary
+public class OnlineOrder implements Order{
+
+}
+
+@Component
+public class OfflineOrder implements Order{
+
+}
+
+```
+
+Solutions:-
+1. @Primary Annotations to give priority to any one implementation of the Order interface.
+2. @Qualifers
+
+Ex- Using qualifier
+```
+// 1. First define interface
+public interface Order {
+    void process();
+}
+
+// 2. Implementations with qualifiers
+@Component
+@Qualifier("online")  // or can create custom qualifier
+public class OnlineOrder implements Order {
+    @Override
+    public void process() {
+        System.out.println("Processing online order");
+    }
+}
+
+@Component
+@Qualifier("offline")
+public class OfflineOrder implements Order {
+    @Override
+    public void process() {
+        System.out.println("Processing offline order");
+    }
+}
+
+// 3. Using Qualifier in User class
+@Component
+public class User {
+    private final Order order;
+
+    @Autowired
+    public User(@Qualifier("online") Order order) {  // Specify which implementation
+        this.order = order;
+    }
+}
+```
