@@ -640,3 +640,11 @@ public class User {
     }
 }
 ```
+---
+
+# 4. Bean Scopes
+
+- Singleton
+- Prototype
+- Request
+- Session 
